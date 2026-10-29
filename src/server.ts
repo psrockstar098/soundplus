@@ -28,6 +28,7 @@ import { randomUUID } from "node:crypto";
 import { chatComplete, type ChatMessage } from "./ai.ts";
 import { enabledInputs, gateInput } from "./capabilities.ts";
 import { callTool, discoverTools } from "./mcp.ts";
+import { discoverPluginsViaMcp, searchPlugins, type PluginPurpose } from "./features/plugins.ts";
 import {
   openDb,
   createProject,
@@ -143,6 +144,25 @@ api.get("/api/mcp-tools", async () => {
   const s = loadSettings();
   const result = await discoverTools(s.mcpServers);
   return API.json(result);
+});
+
+// F1 plugin discovery, F2 project intelligence (bridge tools only).
+api.get("/api/plugins", async (ctx) => {
+  const params = new URL(ctx.req.url).searchParams;
+  const server = params.get("server") ?? "";
+  const purpose = params.get("purpose") ?? undefined;
+  const q = params.get("q") ?? undefined;
+  if (!server) return err("server query param is required", 400);
+  const s = loadSettings();
+  const d = await discoverPluginsViaMcp(s.mcpServers, server);
+  if (!d.available) return API.json(d);
+  return API.json({
+    available: true,
+    plugins: searchPlugins(d.plugins, {
+      purpose: purpose as PluginPurpose | undefined,
+      query: q,
+    }),
+  });
 });
 
 api.post("/api/mcp/call", async (ctx) => {
