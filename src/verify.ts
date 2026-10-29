@@ -12,7 +12,7 @@
  * reported as an unexpected shape, never guessed.
  */
 
-import { discoverTools, callTool } from "./mcp.ts";
+import { discoverTools, callTool, closeServers } from "./mcp.ts";
 import type { McpServerEntry } from "./settings.ts";
 
 export type BridgeReport = {
@@ -55,7 +55,8 @@ export async function verifyBridge(server: McpServerEntry): Promise<BridgeReport
     trackCount: null,
     notes: [],
   };
-  const discovered = await discoverTools([server]);
+  try {
+    const discovered = await discoverTools([server]);
   if (discovered.skippedServers.includes(server.name)) {
     report.notes.push("bridge unreachable or failed initialize/tools/list");
     return report;
@@ -95,6 +96,10 @@ export async function verifyBridge(server: McpServerEntry): Promise<BridgeReport
     report.notes.push("get_project not offered; F2 project intelligence unavailable on this bridge");
   }
   return report;
+  } finally {
+    // Stdio bridges are spawned processes; stop them so the CLI exits.
+    closeServers();
+  }
 }
 
 export async function verifyAll(servers: McpServerEntry[]): Promise<BridgeReport[]> {

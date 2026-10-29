@@ -1,17 +1,26 @@
 /**
  * MCP gateway — SoundPlus as an MCP CLIENT to the DAW-control servers.
  *
- * Transport: MCP-over-HTTP, plain JSON-RPC 2.0 POST (initialize,
- * tools/list, tools/call). Tools are namespaced `<server>.<tool>` in the
- * agent's tool list. A server that cannot be reached, or whose name
- * collides with an already-registered server, lands in skippedServers
- * and is NEVER fatal to the rest of the app.
+ * Two transports:
+ * - HTTP: MCP-over-HTTP, plain JSON-RPC 2.0 POST (initialize,
+ *   tools/list, tools/call).
+ * - stdio: the bridge is a spawned local program speaking
+ *   newline-delimited JSON-RPC (how FastMCP servers run by default —
+ *   rosasynthesiz flstudio-mcp, hedidjs cubase-mcp, calvinw
+ *   fl-studio-mcp are all stdio). One process per server, kept alive
+ *   across calls; closeServers() stops them.
  *
- * Phase 1 covers the gateway + registry. Real DAW servers (flstudio-mcp,
- * cubase-mcp, piano-roll) plug in here unchanged in Phase 4.
+ * Tools are namespaced `<server>.<tool>` in the agent's tool list. A
+ * server that cannot be reached, or whose name collides with an
+ * already-registered server, lands in skippedServers and is NEVER
+ * fatal to the rest of the app.
+ *
+ * Phase 1 covers the gateway + registry. Real DAW servers plug in
+ * here in Phase 4.
  */
 
 import type { McpServerEntry } from "./settings.ts";
+import { StdioMcpClient } from "./mcpStdio.ts";
 
 export type McpTool = {
   name: string;
@@ -38,6 +47,31 @@ async function rpc(url: string, method: string, params?: unknown): Promise<unkno
   return data.result;
 }
 
+const stdioClients = new Map<string, StdioMcpClient>();
+
+function stdioClient(server: McpServerEntry): StdioMcpClient {
+  if (!server.command) throw new Error(`stdio MCP server "${server.name}" has no command`);
+  let client = stdioClients.get(server.name);
+  if (!client) {
+    client = new StdioMcpClient(server.command, server.args ?? [], server.cwd);
+    stdioClients.set(server.name, client);
+  }
+  return client;
+}
+
+/** Stop every spawned stdio bridge process (CLI exit, tests). */
+export function closeServers(): void {
+  for (const client of stdioClients.values()) client.close();
+  stdioClients.clear();
+}
+
+async function rpcFor(server: McpServerEntry, method: string, params?: unknown): Promise<unknown> {
+  if (server.transport === "stdio") {
+    return stdioClient(server).request(method, params);
+  }
+  return rpc(server.url, method, params);
+}
+
 export async function discoverTools(servers: McpServerEntry[]): Promise<GatewayResult> {
   const tools: McpTool[] = [];
   const skippedServers: string[] = [];
@@ -49,12 +83,12 @@ export async function discoverTools(servers: McpServerEntry[]): Promise<GatewayR
     }
     seenNames.add(server.name);
     try {
-      await rpc(server.url, "initialize", {
+      await rpcFor(server, "initialize", {
         protocolVersion: "2024-11-05",
         capabilities: {},
         clientInfo: { name: "soundplus", version: "0.1.0" },
       });
-      const listed = (await rpc(server.url, "tools/list")) as {
+      const listed = (await rpcFor(server, "tools/list")) as {
         tools?: Array<{ name: string; description?: string }>;
       };
       for (const tool of listed.tools ?? []) {
@@ -80,5 +114,5 @@ export async function callTool(
 ): Promise<unknown> {
   const server = servers.find((s) => s.name === serverName);
   if (!server) throw new Error(`unknown MCP server "${serverName}"`);
-  return rpc(server.url, "tools/call", { name: toolName, arguments: args });
+  return rpcFor(server, "tools/call", { name: toolName, arguments: args });
 }

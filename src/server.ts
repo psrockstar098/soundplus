@@ -132,11 +132,27 @@ api.get("/api/mcp-servers", () => {
 
 api.post("/api/mcp-servers", async (ctx) => {
   const body = (await readJson(ctx.req)) as Partial<McpServerEntry> | null;
-  if (!body || typeof body.name !== "string" || !body.name || typeof body.url !== "string") {
-    return err("mcp server name and url are required", 400);
+  if (
+    !body ||
+    typeof body.name !== "string" ||
+    !body.name ||
+    (body.transport !== "stdio" && typeof body.url !== "string") ||
+    (body.transport === "stdio" && typeof body.command !== "string")
+  ) {
+    return err("mcp server name and url (http) or command (stdio) are required", 400);
   }
   const s = loadSettings();
-  const entry: McpServerEntry = { name: body.name, url: body.url, transport: "http" };
+  const entry: McpServerEntry =
+    body.transport === "stdio"
+      ? {
+          name: body.name,
+          url: "",
+          transport: "stdio",
+          command: body.command,
+          args: Array.isArray(body.args) ? body.args : [],
+          cwd: body.cwd,
+        }
+      : { name: body.name, url: body.url, transport: "http" };
   s.mcpServers = [...s.mcpServers.filter((m) => m.name !== entry.name), entry];
   saveSettings(s);
   return API.json({ servers: s.mcpServers });

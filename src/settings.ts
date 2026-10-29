@@ -28,8 +28,15 @@ export type ModelEntry = {
 
 export type McpServerEntry = {
   name: string;
+  /** HTTP only. Stdio servers use command/args instead. */
   url: string;
-  transport: "http";
+  transport: "http" | "stdio";
+  /** Stdio only: the command that starts the bridge, e.g. "python". */
+  command?: string;
+  /** Stdio only: arguments for the command, e.g. ["server.py"]. */
+  args?: string[];
+  /** Stdio only: working directory to start the bridge in. */
+  cwd?: string;
 };
 
 export type Settings = {
