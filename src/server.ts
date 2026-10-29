@@ -25,6 +25,8 @@
 import { createAPI, API } from "yatta.js/api";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+// Chatbox page, embedded at build time (works in dev and in compiled binaries).
+import chatboxHtml from "../public/chatbox.html" with { type: "text" };
 import { chatComplete, type ChatMessage } from "./ai.ts";
 import { enabledInputs, gateInput } from "./capabilities.ts";
 import { callTool, discoverTools } from "./mcp.ts";
@@ -77,9 +79,10 @@ api.get("/health", () =>
 );
 
 api.get("/", async () => {
-  const file = Bun.file(join(import.meta.dir, "..", "public", "chatbox.html"));
-  const html = await file.text();
-  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+  // Embedded at build time so compiled binaries (bun build --compile)
+  // serve the page without needing a public/ folder next to the exe.
+  // In dev (bun src/server.ts) Bun resolves the same import from disk.
+  return new Response(chatboxHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
 });
 
 api.get("/api/settings", () => API.json(publicSettings(loadSettings())));
