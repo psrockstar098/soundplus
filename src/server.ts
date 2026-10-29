@@ -29,6 +29,7 @@ import { chatComplete, type ChatMessage } from "./ai.ts";
 import { enabledInputs, gateInput } from "./capabilities.ts";
 import { callTool, discoverTools } from "./mcp.ts";
 import { discoverPluginsViaMcp, searchPlugins, type PluginPurpose } from "./features/plugins.ts";
+import { readProjectViaMcp } from "./features/project.ts";
 import {
   openDb,
   createProject,
@@ -230,6 +231,13 @@ api.post("/api/chat", async (ctx) => {
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e), 502);
   }
+});
+
+api.get("/api/project", async (ctx) => {
+  const server = new URL(ctx.req.url).searchParams.get("server") ?? "";
+  if (!server) return err("server query param is required", 400);
+  const s = loadSettings();
+  return API.json(await readProjectViaMcp(s.mcpServers, server));
 });
 
 // ---------------------------------------------------------------------------
