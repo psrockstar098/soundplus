@@ -1,0 +1,1 @@
+{"dependencies":{"yatta.js":"1.0.1"},"description":"SoundPlus: standalone AI mixing and mastering assistant for FL Studio and Cubase, built with Yatta JS","license":"MIT","name":"soundplus","private":true,"scripts":{"start":"bun src/server.ts","test":"bun test"},"type":"module","version":"0.1.0"}

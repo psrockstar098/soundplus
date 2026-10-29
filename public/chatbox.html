@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoundPlus</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; background: #111; color: #eee; }
+  h1 { font-size: 1.4rem; }
+  #log { border: 1px solid #333; border-radius: 8px; padding: 1rem; min-height: 200px; white-space: pre-wrap; }
+  .row { display: flex; gap: .5rem; margin-top: 1rem; }
+  textarea { flex: 1; background: #222; color: #eee; border: 1px solid #333; border-radius: 8px; padding: .5rem; }
+  button { background: #0e7a5f; color: #fff; border: 0; border-radius: 8px; padding: .5rem 1rem; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  #caps { color: #aaa; font-size: .9rem; }
+  a { color: #7fd4bd; }
+</style>
+</head>
+<body>
+<h1>SoundPlus</h1>
+<p id="caps">Loading model capabilities…</p>
+<div id="log"></div>
+<div class="row">
+  <textarea id="msg" rows="3" placeholder="Tell SoundPlus what to do in your DAW…"></textarea>
+  <button id="send">Send</button>
+</div>
+<div class="row">
+  <label>Audio input <input type="file" id="audio" accept="audio/*" disabled></label>
+  <label>Image input <input type="file" id="image" accept="image/*" disabled></label>
+  <a href="/api/settings" target="_blank">settings (key masked)</a>
+</div>
+<script>
+  const log = document.getElementById('log');
+  const capsEl = document.getElementById('caps');
+  const audioEl = document.getElementById('audio');
+  const imageEl = document.getElementById('image');
+  const msgEl = document.getElementById('msg');
+  const say = (who, text) => { log.textContent += who + ': ' + text + '\n\n'; };
+
+  // Capability gating: inputs follow the picked model's capabilities.
+  fetch('/api/settings').then(r => r.json()).then(s => {
+    const model = s.models.find(m => m.name === s.provider.model);
+    const caps = model ? model.capabilities : { text: true, audio: false, image: false };
+    capsEl.textContent = 'Model: ' + (s.provider.model || '(none configured)') +
+      ' — text: ' + caps.text + ', audio: ' + caps.audio + ', image: ' + caps.image;
+    audioEl.disabled = !caps.audio;
+    imageEl.disabled = !caps.image;
+  }).catch(() => { capsEl.textContent = 'Could not load settings.'; });
+
+  document.getElementById('send').onclick = async () => {
+    const text = msgEl.value.trim();
+    if (!text) return;
+    say('You', text);
+    msgEl.value = '';
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: text, kind: 'text' }] })
+    });
+    const data = await res.json();
+    say('SoundPlus', res.ok ? data.reply : ('Error: ' + (data.error || res.status)));
+  };
+</script>
+</body>
+</html>
