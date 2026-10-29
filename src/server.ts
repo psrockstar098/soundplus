@@ -24,9 +24,22 @@
 
 import { createAPI, API } from "yatta.js/api";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { chatComplete, type ChatMessage } from "./ai.ts";
 import { enabledInputs, gateInput } from "./capabilities.ts";
 import { callTool, discoverTools } from "./mcp.ts";
+import {
+  openDb,
+  createProject,
+  listProjects,
+  getProject,
+  recordAction,
+  listActions,
+  listProfile,
+  editProfileFact,
+  deleteProfileFact,
+  distillProfile,
+} from "./db.ts";
 import {
   loadSettings,
   publicSettings,
@@ -43,6 +56,10 @@ const startedAt = Date.now();
 
 const api = createAPI();
 const err = (message: string, status: number) => API.json({ error: message }, { status });
+
+// Lazy DB handle (opened on first memory route; path follows $SOUNDPLUS_HOME).
+let dbHandle: ReturnType<typeof openDb> | null = null;
+const getDb = () => (dbHandle ??= openDb());
 
 async function readJson(req: Request): Promise<unknown> {
   try {
@@ -152,7 +169,7 @@ api.post("/api/mcp/call", async (ctx) => {
 });
 
 api.post("/api/chat", async (ctx) => {
-  const body = (await readJson(ctx.req)) as { messages?: unknown } | null;
+  const body = (await readJson(ctx.req)) as { messages?: unknown; project?: unknown } | null;
   const messages = body?.messages;
   if (!Array.isArray(messages) || messages.length === 0) {
     return err("messages are required", 400);
@@ -165,14 +182,95 @@ api.post("/api/chat", async (ctx) => {
     const blocked = gateInput(s, kind);
     if (blocked) return err(blocked, 400);
   }
+  // Optional project recording: history is per-project, strictly isolated.
+  let projectId: string | null = null;
+  if (typeof body?.project === "string" && body.project) {
+    projectId = body.project;
+    if (!getProject(getDb(), projectId)) return err("unknown project", 400);
+  }
   const { baseUrl, apiKey, model } = s.provider;
   if (!baseUrl || !model) return err("no provider configured: save settings first", 400);
   try {
     const reply = await chatComplete(baseUrl, apiKey, model, typed);
+    if (projectId) {
+      try {
+        const db = getDb();
+        for (const m of typed.filter((x) => x.role === "user")) {
+          recordAction(db, projectId, "chat", m.content.slice(0, 200), {
+            role: "user",
+            kind: m.kind ?? "text",
+          });
+        }
+        recordAction(db, projectId, "chat", reply.slice(0, 200), { role: "assistant" });
+      } catch (e) {
+        console.error("history record failed (reply still returned):", e);
+      }
+    }
     return API.json({ reply, model, inputs: enabledInputs(s) });
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e), 502);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2 memories + registries. Profile edit/delete use POST sub-routes
+// (edit/delete verbs are unproven on Yatta's router; get/post are proven).
+// ---------------------------------------------------------------------------
+
+api.get("/api/projects", () => API.json({ projects: listProjects(getDb()) }));
+
+api.post("/api/projects", async (ctx) => {
+  const body = (await readJson(ctx.req)) as { name?: unknown } | null;
+  if (!body || typeof body.name !== "string" || !body.name) {
+    return err("project name is required", 400);
+  }
+  return API.json({ project: createProject(getDb(), randomUUID(), body.name) }, { status: 201 });
+});
+
+api.get("/api/projects/:id/actions", (ctx) => {
+  if (!getProject(getDb(), ctx.params.id)) return err("unknown project", 404);
+  return API.json({ actions: listActions(getDb(), ctx.params.id) });
+});
+
+api.post("/api/projects/:id/actions", async (ctx) => {
+  if (!getProject(getDb(), ctx.params.id)) return err("unknown project", 404);
+  const body = (await readJson(ctx.req)) as {
+    kind?: unknown;
+    summary?: unknown;
+    detail?: unknown;
+  } | null;
+  if (!body || typeof body.kind !== "string" || typeof body.summary !== "string") {
+    return err("kind and summary are required", 400);
+  }
+  return API.json(
+    {
+      action: recordAction(getDb(), ctx.params.id, body.kind, body.summary, body.detail ?? null),
+    },
+    { status: 201 },
+  );
+});
+
+api.get("/api/profile", () => API.json({ profile: listProfile(getDb()) }));
+
+api.post("/api/profile/distill", () => {
+  const added = distillProfile(getDb());
+  return API.json({ added, profile: listProfile(getDb()) });
+});
+
+api.post("/api/profile/:id/edit", async (ctx) => {
+  const body = (await readJson(ctx.req)) as { fact?: unknown } | null;
+  if (!body || typeof body.fact !== "string" || !body.fact) {
+    return err("fact is required", 400);
+  }
+  const updated = editProfileFact(getDb(), Number(ctx.params.id), body.fact);
+  if (!updated) return err("unknown profile fact", 404);
+  return API.json({ fact: updated });
+});
+
+api.post("/api/profile/:id/delete", (ctx) => {
+  const ok = deleteProfileFact(getDb(), Number(ctx.params.id));
+  if (!ok) return err("unknown profile fact", 404);
+  return API.json({ deleted: true });
 });
 
 const server = Bun.serve({

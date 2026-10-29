@@ -4,7 +4,7 @@ Standalone AI mixing and mastering assistant for FL Studio and Cubase,
 built with Yatta JS. No VST, no plugin container: the producer opens
 SoundPlus next to the DAW, and it drives the DAW through MCP bridges.
 
-## Phase 1 — skeleton (this commit)
+## Phase 1 — skeleton (f411dcf)
 
 - Yatta JS app (`yatta.js/api`) serving a chatbox page at `/`
 - BYOK settings: provider base URL + key + model, key MASKED on every
@@ -17,6 +17,22 @@ SoundPlus next to the DAW, and it drives the DAW through MCP bridges.
   `<server>.<tool>`, unreachable or duplicate-name servers land in
   `skippedServers` and are never fatal
 - Tests: `bun test` (mock MCP server, stub model — no real keys, no DAWs)
+
+## Phase 2 — memories + registries (this commit)
+
+- Per-project action history in Yatta's built-in DB
+  (`$SOUNDPLUS_HOME/soundplus.db`): strictly isolated per project —
+  project A's actions are never visible under B
+- Cross-project producer profile distilled ONLY from real recorded
+  tool actions (`Used <tool> N time(s)`); nothing invented, and
+  distillation never overwrites a hand-edited fact
+- Producer-correctable profile: edit/delete via
+  `POST /api/profile/:id/edit` and `POST /api/profile/:id/delete`
+- Chat records user + assistant turns into the given project's history
+  (`"project"` field on `/api/chat`); unknown project → 400
+- Project routes: `GET/POST /api/projects`,
+  `GET/POST /api/projects/:id/actions`; profile routes:
+  `GET /api/profile`, `POST /api/profile/distill`
 
 ## Run
 
@@ -42,8 +58,6 @@ URL as a Bearer token and is never logged or returned unmasked.
 
 ## Next
 
-- Phase 2: per-project action history + producer profile (Yatta DB),
-  MCP server registry UI, model registry UI
 - Phase 3: features 1–30, same order as the VST spec
 - Phase 4: real-machine verification — real FL Studio via flstudio-mcp,
   real Cubase via cubase-mcp, real provider call with the producer's key
