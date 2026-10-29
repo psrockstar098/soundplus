@@ -11,7 +11,15 @@ SoundPlus alone is enough — no separate repo downloads.
 - `cubase-mcp/` — https://github.com/hedidjs/cubase-mcp
   (Cubase, MIT — see its LICENSE)
 
-They are not SoundPlus code and are not edited here. To update one,
+They are not SoundPlus code and are not edited here, except for one
+local fix: `flstudio-mcp/scripts/install_windows.bat` step [4/4]
+used to run the loopMIDI port check as a `python -c` one-liner,
+but cmd's `%VAR%` expansion mangled its `%s` format string, so
+the check always crashed with "unterminated string literal" on
+Windows. The check now lives in `scripts/check_ports.py` (same
+logic, no shell-quoting layer) and always exits 0 — it reports
+missing ports instead of failing the install. To update one,
 replace its folder with a fresh copy of the upstream repo (keeping
-its LICENSE) and re-test. Windows setup uses these copies:
+its LICENSE) and re-apply that fix if upstream still has the
+one-liner. Windows setup uses these copies:
 `scripts\setup-windows.bat`.
