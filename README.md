@@ -56,9 +56,28 @@ A real OpenAI-compatible provider works the same way: set `baseUrl`,
 `model`, and `apiKey` in settings. The key is sent only to that base
 URL as a Bearer token and is never logged or returned unmasked.
 
-## Next
+## Phase 3 — features 1–5 (batch 1)
 
-- Phase 3: features 1–30, same order as the VST spec
+- F1 plugin discovery via bridge `list_plugins` + purpose search
+- F2 project intelligence via bridge `get_project` + summary
+- F3 DSP diagnosis (peak/RMS/crest/clipping/bands, heuristic flags)
+- F4 autonomous mix loop (plan-execute-evaluate, failures recorded)
+- F5 vocal chain + drum plans
+
+## Phase 3 — features 6–10 (batch 2, this commit)
+
+- F6 mastering + export verification: RMS loudness estimate (labeled,
+  not LUFS), parabolic inter-sample true-peak estimate, clipping
+  checks, limiter ceiling by mix heat, deliverables report
+- F7 reference matching: tonal/dynamics/width/loudness deltas vs a
+  reference, with corrective gain changes actually tested on samples
+- F8 undo + versions: modifications recorded with before/after
+  states, named version snapshots, rollback restores recorded state
+  (live-DAW application happens via bridge tools in Phase 4)
+- F9 multi-agent + MCP: explicit per-agent tool allow-lists;
+  denied tasks are recorded and never executed
+- F10 capability manager: OS/runtime/bridges/plugin formats plus a
+  plain list of unsupported features; route `GET /api/capabilities`
 - Phase 4: real-machine verification — real FL Studio via flstudio-mcp,
   real Cubase via cubase-mcp, real provider call with the producer's key
 

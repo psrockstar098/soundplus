@@ -30,6 +30,7 @@ import { enabledInputs, gateInput } from "./capabilities.ts";
 import { callTool, discoverTools } from "./mcp.ts";
 import { discoverPluginsViaMcp, searchPlugins, type PluginPurpose } from "./features/plugins.ts";
 import { readProjectViaMcp } from "./features/project.ts";
+import { capabilityReport } from "./features/capabilities.ts";
 import {
   openDb,
   createProject,
@@ -238,6 +239,12 @@ api.get("/api/project", async (ctx) => {
   if (!server) return err("server query param is required", 400);
   const s = loadSettings();
   return API.json(await readProjectViaMcp(s.mcpServers, server));
+});
+
+// F10 capability report: what this machine can actually execute.
+api.get("/api/capabilities", async () => {
+  const s = loadSettings();
+  return API.json(await capabilityReport(s.mcpServers));
 });
 
 // ---------------------------------------------------------------------------
