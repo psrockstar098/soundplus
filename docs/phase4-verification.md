@@ -22,23 +22,37 @@ The verify command for a stdio bridge is:
 bun scripts/verify-bridge.ts <name> stdio [--cwd <dir>] <command> [args...]
 ```
 
-## What you need on the PC
+## Single clone — nothing else to download (except runtimes)
 
-- Bun (https://bun.sh — the installer)
-- Python 3.10+ (FL bridge) / 3.11+ (compose bridge)
-- This repo: `git clone https://github.com/psrockstar098/soundplus`
-- The bridge repos (cloned wherever you like):
-  - FL: https://github.com/rosasynthesiz/flstudio-mcp
-  - Compose (optional on Windows, see Step 2): https://github.com/calvinw/fl-studio-mcp
-  - Cubase: https://github.com/hedidjs/cubase-mcp
-- FL Studio 2026, Cubase, loopMIDI (free virtual MIDI ports)
-- A provider API key, entered by you in SoundPlus settings
-  (stored masked, file mode 0600 — never send it to D)
+Clone **only this repo**. The three bridge repos are vendored
+inside it under `bridges/` (with their LICENSE files intact), so
+there are no separate repo downloads:
+
+- `bridges/flstudio-mcp` — rosasynthesiz flstudio-mcp
+- `bridges/compose` — calvinw fl-studio-mcp (optional on Windows)
+- `bridges/cubase-mcp` — hedidjs cubase-mcp
+
+What must already be on the PC (runtimes and drivers cannot live
+in a repo): Bun, Python 3.12, FL Studio 2026, Cubase, loopMIDI.
+After cloning, `bun install` fetches SoundPlus's one dependency
+(yatta.js) — that is the only package download in the whole flow.
+
+## Step 0 — One-time setup (run once)
+
+From the soundplus folder:
+
+```bat
+scripts\setup-windows.bat
+```
+
+That runs the FL bridge's own installer (controller script into
+FL's Settings, MCP server via pip, note-bridge script) and installs
+the Cubase bridge's requirements — all from the vendored copies.
 
 ## Step 1 — FL Studio bridge (rosasynthesiz, the main one)
 
-1. In the flstudio-mcp folder, run `scripts\install_windows.bat`
-   (installs the controller + server + note bridge).
+1. Step 0 already installed it. If you skipped Step 0, run
+   `bridges\flstudio-mcp\scripts\install_windows.bat` directly.
 2. Install loopMIDI, create two virtual MIDI ports, and wire them
    in FL Studio's MIDI settings as that repo's guide shows.
 3. Start the bridge: `fl-studio-mcp-daemon` (keep it running).
@@ -60,7 +74,7 @@ bridge configures it. Audio export is manual (File > Export).
 This repo is macOS-first; Windows support is partial. It needs
 `uv` + Python 3.11+, then its `fl_studio_mcp_server.py` runs as a
 stdio server the same way. Verify with:
-`bun scripts/verify-bridge.ts compose stdio --cwd <that-folder> uv run fl_studio_mcp_server.py`
+`bun scripts/verify-bridge.ts compose stdio --cwd bridges\compose uv run fl_studio_mcp_server.py`
 (adjust the command to whatever that repo's install leaves you with.)
 
 If its Windows trigger does not work, skip it — the Step 1 bridge
@@ -68,14 +82,15 @@ already writes notes and covers composition, so nothing is lost.
 
 ## Step 3 — Cubase bridge (hedidjs, weakest link — be aware)
 
-1. `pip install -r requirements.txt`, then `python server.py`
-   from the cubase-mcp folder.
+1. Step 0 already installed its requirements. If you skipped
+   Step 0: `pip install -r bridges\cubase-mcp\requirements.txt`,
+   then `python server.py` from the `bridges\cubase-mcp` folder.
 2. That repo's setup guide is macOS-only (IAC Driver). On Windows,
    use loopMIDI as the virtual-MIDI equivalent — this path is
    untested by that repo's author, so if it fights you, say so and
    stop; don't force it.
 3. Verify:
-   `bun scripts/verify-bridge.ts cubase stdio --cwd <that-folder> python server.py`
+   `bun scripts/verify-bridge.ts cubase stdio --cwd bridges\cubase-mcp python server.py`
    Coverage here is transport, mixer, and MIDI-file creation —
    not full project control like the FL bridge.
 

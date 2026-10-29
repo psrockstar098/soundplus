@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PIPFILE.lock
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Gemini CLI
+.gemini/
+settings.json
+gemini_mcp_config.json
+
+# FL Studio MCP Communication Files
+# Note: These are created dynamically in the FL Studio scripts directory
+# and should not be tracked in the repository
+mcp_request.json
+mcp_response.json
+piano_roll_state.json
+
+# MIDI test files (optional - remove these lines if you want to track .mid files)
+*.mid
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+
+# Signal directory (local clone, not part of this repo)
+signal/
+
+# Auto-trigger PID file
+.auto_trigger.pid
+
+# uv lock file (can be committed or ignored - ignoring for now)
+uv.lock
+
+# Python version file (managed by uv)
+.python-version
