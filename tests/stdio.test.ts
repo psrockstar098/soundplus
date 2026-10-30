@@ -30,6 +30,15 @@ describe("MCP stdio transport", () => {
     ]);
   });
 
+  test("tools/list inputSchema is kept for the chat tool loop", async () => {
+    const r = await discoverTools([stdioServer]);
+    const list = r.tools.find((t) => t.namespaced === "flstudio.list_plugins");
+    expect(list?.inputSchema).toEqual({
+      type: "object",
+      properties: { q: { type: "string" } },
+    });
+  });
+
   test("tools/call reaches the stdio server", async () => {
     const result = (await callTool([stdioServer], "flstudio", "list_plugins", {})) as {
       plugins: Array<{ name: string }>;

@@ -27,6 +27,8 @@ export type McpTool = {
   namespaced: string;
   description: string;
   server: string;
+  /** JSON Schema for the tool's arguments, as listed by the server. */
+  inputSchema?: Record<string, unknown>;
 };
 
 export type GatewayResult = {
@@ -89,7 +91,11 @@ export async function discoverTools(servers: McpServerEntry[]): Promise<GatewayR
         clientInfo: { name: "soundplus", version: "0.1.0" },
       });
       const listed = (await rpcFor(server, "tools/list")) as {
-        tools?: Array<{ name: string; description?: string }>;
+        tools?: Array<{
+          name: string;
+          description?: string;
+          inputSchema?: Record<string, unknown>;
+        }>;
       };
       for (const tool of listed.tools ?? []) {
         tools.push({
@@ -97,6 +103,7 @@ export async function discoverTools(servers: McpServerEntry[]): Promise<GatewayR
           namespaced: `${server.name}.${tool.name}`,
           description: tool.description ?? "",
           server: server.name,
+          inputSchema: tool.inputSchema,
         });
       }
     } catch {

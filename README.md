@@ -4,6 +4,44 @@ Standalone AI mixing and mastering assistant for FL Studio and Cubase,
 built with Yatta JS. No VST, no plugin container: the producer opens
 SoundPlus next to the DAW, and it drives the DAW through MCP bridges.
 
+## Quick start (Windows, FL Studio)
+
+Prerequisites (runtimes and drivers cannot live in a repo): Bun,
+Python 3.12, FL Studio, loopMIDI.
+
+```powershell
+git clone https://github.com/psrockstar098/soundplus.git
+cd soundplus
+bun install
+scripts\setup-windows.bat
+```
+
+`setup-windows.bat` installs the FL bridge (controller script, MCP
+server, note-bridge script) from the vendored copy in `bridges/` and
+the Cubase bridge's requirements. Then, once, by hand:
+
+- loopMIDI: create two virtual ports, exactly `FLStudioMCP RX` and
+  `FLStudioMCP TX`.
+- FL Studio → Options → MIDI Settings: Output `FLStudioMCP RX`
+  enabled, Port 42; Input `FLStudioMCP TX` enabled, Controller type
+  `FLStudioMCP`, Port 42.
+
+Then launch everything with one command (daemon in its own window,
+SoundPlus in this one):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-all.ps1
+```
+
+Open http://127.0.0.1:3000/settings, save your provider (base URL,
+key, model) and the FL bridge (command `python`, args
+`-m fl_studio_mcp.server`), then open a project in FL, arm
+`MCP_Apply` once in the piano roll, and ask the chatbox something
+real — "what plugins are installed?" The chat sends the registered
+bridge tools to the model, which calls them and answers from their
+results; the chatbox shows which tools were used. Full checklist:
+`docs/phase4-verification.md`.
+
 ## Phase 1 — skeleton (f411dcf)
 
 - Yatta JS app (`yatta.js/api`) serving a chatbox page at `/`

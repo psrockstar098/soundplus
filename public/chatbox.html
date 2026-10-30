@@ -59,6 +59,9 @@
     });
     const data = await res.json();
     say('SoundPlus', res.ok ? data.reply : ('Error: ' + (data.error || res.status)));
+    if (res.ok && data.toolsUsed && data.toolsUsed.length) {
+      say('Tools used', data.toolsUsed.join(', '));
+    }
   };
 </script>
 </body>

@@ -30,7 +30,7 @@ import { randomUUID } from "node:crypto";
 import chatboxHtml from "../public/chatbox.html" with { type: "text" };
 // Settings page, embedded the same way (same reason).
 import settingsHtml from "../public/settings.html" with { type: "text" };
-import { chatComplete, type ChatMessage } from "./ai.ts";
+import { chatComplete, type ChatMessage, type ChatTool } from "./ai.ts";
 import { enabledInputs, gateInput } from "./capabilities.ts";
 import { callTool, discoverTools } from "./mcp.ts";
 import { discoverPluginsViaMcp, searchPlugins, type PluginPurpose } from "./features/plugins.ts";
@@ -240,8 +240,43 @@ api.post("/api/chat", async (ctx) => {
   }
   const { baseUrl, apiKey, model } = s.provider;
   if (!baseUrl || !model) return err("no provider configured: save settings first", 400);
+  // Tool-calling chat: the registered MCP servers' tools are sent to
+  // the model, which may call them; each call executes through the
+  // gateway. Unreachable servers are skipped, never fatal.
+  let tools: ChatTool[] = [];
   try {
-    const reply = await chatComplete(baseUrl, apiKey, model, typed);
+    const discovered = await discoverTools(s.mcpServers);
+    tools = discovered.tools.map((t) => ({
+      name: t.namespaced,
+      description: t.description,
+      parameters: t.inputSchema,
+    }));
+  } catch {
+    tools = [];
+  }
+  const toolsUsed: string[] = [];
+  try {
+    const reply = await chatComplete(baseUrl, apiKey, model, typed, {
+      tools,
+      onToolCall: async (namespaced, args) => {
+        const dot = namespaced.indexOf(".");
+        const serverName = dot === -1 ? "" : namespaced.slice(0, dot);
+        const toolName = dot === -1 ? namespaced : namespaced.slice(dot + 1);
+        const result = await callTool(s.mcpServers, serverName, toolName, args);
+        toolsUsed.push(namespaced);
+        if (projectId) {
+          try {
+            recordAction(getDb(), projectId, "tool", namespaced, {
+              tool: namespaced,
+              args,
+            });
+          } catch {
+            // History must never break the reply.
+          }
+        }
+        return typeof result === "string" ? result : JSON.stringify(result);
+      },
+    });
     if (projectId) {
       try {
         const db = getDb();
@@ -256,7 +291,7 @@ api.post("/api/chat", async (ctx) => {
         console.error("history record failed (reply still returned):", e);
       }
     }
-    return API.json({ reply, model, inputs: enabledInputs(s) });
+    return API.json({ reply, model, inputs: enabledInputs(s), toolsUsed });
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e), 502);
   }

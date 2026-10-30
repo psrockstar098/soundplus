@@ -29,7 +29,7 @@ for await (const chunk of Bun.stdin.stream()) {
     } else if (msg.method === "tools/list") {
       send(msg.id, {
         tools: [
-          { name: "list_plugins", description: "list" },
+          { name: "list_plugins", description: "list", inputSchema: { type: "object", properties: { q: { type: "string" } } } },
           { name: "get_project", description: "read" },
         ],
       });
