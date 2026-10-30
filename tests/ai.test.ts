@@ -75,13 +75,21 @@ describe("chatComplete tool loop", () => {
       tools: [{ name: "flstudio.fl_ping", description: "ping" }],
     });
     const first = seen[0] as {
-      messages: Array<{ role: string }>;
+      messages: Array<{ role: string; content?: string }>;
       tools: Array<{ function: { name: string } }>;
       tool_choice: string;
     };
     expect(first.messages[0]?.role).toBe("system");
     expect(first.tools.map((t) => t.function.name)).toEqual(["flstudio.fl_ping"]);
     expect(first.tool_choice).toBe("auto");
+    // Production-agent rules ride in the system prompt.
+    const prompt = first.messages[0]?.content ?? "";
+    expect(prompt).toContain("fl_take_snapshot");
+    expect(prompt).toContain("fl_set_dry_run");
+    expect(prompt).toContain("fl_rollback_last_change");
+    expect(prompt).toContain("cannot load a new plugin");
+    expect(prompt).toContain("cannot render or export audio");
+    expect(prompt).toContain("not LUFS");
   });
 });
 
