@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoundPlus settings</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; background: #111; color: #eee; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; }
+  label { display: block; margin: .6rem 0 .2rem; color: #ccc; font-size: .9rem; }
+  input, select { width: 100%; box-sizing: border-box; background: #222; color: #eee; border: 1px solid #333; border-radius: 8px; padding: .5rem; }
+  button { background: #0e7a5f; color: #fff; border: 0; border-radius: 8px; padding: .5rem 1rem; cursor: pointer; margin-top: 1rem; }
+  .hint { color: #aaa; font-size: .85rem; }
+  .status { color: #7fd4bd; min-height: 1.2em; margin-top: .5rem; }
+  .err { color: #ff8a7a; }
+  pre { background: #222; border: 1px solid #333; border-radius: 8px; padding: 1rem; white-space: pre-wrap; word-break: break-word; }
+  a { color: #7fd4bd; }
+</style>
+</head>
+<body>
+<h1>SoundPlus settings</h1>
+<p><a href="/">← Back to chat</a></p>
+
+<h2>Provider</h2>
+<p class="hint">Your key is stored only on this machine, in the settings file, and is never shown back — only its masked form. Leave the key field blank to keep the stored key.</p>
+<label>Base URL <input id="baseUrl" type="text" placeholder="e.g. https://generativelanguage.googleapis.com/v1beta/openai/"></label>
+<label>API key <input id="apiKey" type="password" autocomplete="off"></label>
+<p class="hint" id="keyState">Stored key: unknown</p>
+<label>Model <input id="model" type="text" placeholder="e.g. gemini-2.0-flash"></label>
+<button id="saveProvider">Save provider</button>
+<p class="status" id="providerStatus"></p>
+
+<h2>MCP servers</h2>
+<p class="hint">To replace a server, save again with the same name. A stdio bridge is a program SoundPlus starts itself; an HTTP bridge is a URL it connects to.</p>
+<label>Name <input id="srvName" type="text" placeholder="e.g. flstudio"></label>
+<label>Transport
+  <select id="srvTransport">
+    <option value="stdio">stdio (a program to start)</option>
+    <option value="http">http (a URL to connect to)</option>
+  </select>
+</label>
+<div id="stdioFields">
+  <label>Command <input id="srvCommand" type="text" placeholder="e.g. fl-studio-mcp"></label>
+  <label>Arguments, separated by spaces <input id="srvArgs" type="text" placeholder="leave blank if none"></label>
+  <label>Working directory (optional) <input id="srvCwd" type="text" placeholder="leave blank to use SoundPlus's folder"></label>
+</div>
+<div id="httpFields" style="display:none">
+  <label>URL <input id="srvUrl" type="text" placeholder="e.g. http://127.0.0.1:8000/mcp"></label>
+</div>
+<button id="saveServer">Save MCP server</button>
+<p class="status" id="serverStatus"></p>
+
+<h2>Current servers</h2>
+<pre id="serverList">Loading…</pre>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const show = (el, ok, text) => { el.textContent = text; el.className = ok ? 'status' : 'status err'; };
+
+  async function load() {
+    try {
+      const s = await (await fetch('/api/settings')).json();
+      $('baseUrl').value = s.provider.baseUrl || '';
+      $('model').value = s.provider.model || '';
+      $('keyState').textContent = 'Stored key: ' + (s.provider.apiKey || '****');
+      const m = await (await fetch('/api/mcp-servers')).json();
+      $('serverList').textContent = JSON.stringify(m.servers || [], null, 2);
+    } catch (e) {
+      $('serverList').textContent = 'Could not load settings.';
+    }
+  }
+
+  $('srvTransport').onchange = () => {
+    const stdio = $('srvTransport').value === 'stdio';
+    $('stdioFields').style.display = stdio ? '' : 'none';
+    $('httpFields').style.display = stdio ? 'none' : '';
+  };
+
+  $('saveProvider').onclick = async () => {
+    const provider = { baseUrl: $('baseUrl').value.trim(), model: $('model').value.trim() };
+    // Blank key field means "keep the stored key": omit it, so the
+    // server's merge never overwrites the stored key with empty.
+    const key = $('apiKey').value;
+    if (key) provider.apiKey = key;
+    const res = await fetch('/api/settings', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider })
+    });
+    const data = await res.json();
+    if (!res.ok) { show($('providerStatus'), false, 'Error: ' + (data.error || res.status)); return; }
+    $('apiKey').value = '';
+    $('keyState').textContent = 'Stored key: ' + (data.provider.apiKey || '****');
+    show($('providerStatus'), true, 'Provider saved.');
+  };
+
+  $('saveServer').onclick = async () => {
+    const transport = $('srvTransport').value;
+    const entry = { name: $('srvName').value.trim(), transport };
+    if (transport === 'stdio') {
+      entry.command = $('srvCommand').value.trim();
+      entry.args = $('srvArgs').value.trim().split(/\s+/).filter(Boolean);
+      const cwd = $('srvCwd').value.trim();
+      if (cwd) entry.cwd = cwd;
+    } else {
+      entry.url = $('srvUrl').value.trim();
+    }
+    const res = await fetch('/api/mcp-servers', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(entry)
+    });
+    const data = await res.json();
+    if (!res.ok) { show($('serverStatus'), false, 'Error: ' + (data.error || res.status)); return; }
+    $('serverList').textContent = JSON.stringify(data.servers || [], null, 2);
+    show($('serverStatus'), true, 'MCP server saved.');
+  };
+
+  load();
+</script>
+</body>
+</html>

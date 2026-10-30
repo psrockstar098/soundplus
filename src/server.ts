@@ -1,8 +1,9 @@
 /**
  * SoundPlus Phase 1 server — Yatta JS app.
  *
- * Routes (all JSON except / which serves the chatbox page):
+ * Routes (all JSON except / and /settings, which serve pages):
  *   GET  /                  chatbox page
+ *   GET  /settings          settings FORM page (provider + MCP servers)
  *   GET  /health            { status, uptime_s }
  *   GET  /api/settings      settings with the key MASKED (last 4 max)
  *   POST /api/settings      save provider/models/mcpServers; a masked
@@ -27,6 +28,8 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 // Chatbox page, embedded at build time (works in dev and in compiled binaries).
 import chatboxHtml from "../public/chatbox.html" with { type: "text" };
+// Settings page, embedded the same way (same reason).
+import settingsHtml from "../public/settings.html" with { type: "text" };
 import { chatComplete, type ChatMessage } from "./ai.ts";
 import { enabledInputs, gateInput } from "./capabilities.ts";
 import { callTool, discoverTools } from "./mcp.ts";
@@ -83,6 +86,12 @@ api.get("/", async () => {
   // serve the page without needing a public/ folder next to the exe.
   // In dev (bun src/server.ts) Bun resolves the same import from disk.
   return new Response(chatboxHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
+});
+
+api.get("/settings", async () => {
+  // Settings FORM page (provider + MCP servers). This is the page the
+  // chatbox links to; /api/settings itself is JSON only, not a form.
+  return new Response(settingsHtml, { headers: { "content-type": "text/html; charset=utf-8" } });
 });
 
 api.get("/api/settings", () => API.json(publicSettings(loadSettings())));
