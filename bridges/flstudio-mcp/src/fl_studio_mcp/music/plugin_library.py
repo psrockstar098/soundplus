@@ -35,13 +35,21 @@ _ROLE_KW = {
 
 
 def find_plugin_db():
-    """Locate FL's 'Installed' plugin-db folder: env override, else discover under
-    the user's Documents (handles versioned 'FL Studio NN' folders)."""
+    """Locate FL's 'Installed' plugin-db folder: env override, else discover
+    under the user's Documents (handles versioned 'FL Studio NN' folders
+    and OneDrive-redirected Documents, the common reason discovery misses
+    on Windows). Returns None when nothing is found — callers report
+    that gracefully instead of crashing."""
     env = os.environ.get(_ENV)
     if env and os.path.isdir(env):
         return env
     home = Path.home()
-    for r in (home / "Documents" / "Image-Line", home / "Image-Line"):
+    roots = [
+        home / "OneDrive" / "Documents" / "Image-Line",
+        home / "Documents" / "Image-Line",
+        home / "Image-Line",
+    ]
+    for r in roots:
         if not r.is_dir():
             continue
         for fl in sorted(r.glob("FL Studio*"), reverse=True):
@@ -67,7 +75,8 @@ def list_installed(base=None):
     base = base or find_plugin_db()
     if not base or not os.path.isdir(base):
         return {"found": False, "path": base,
-                "error": "FL plugin-db 'Installed' folder not found; set %s to its path." % _ENV}
+                "error": "FL plugin-db 'Installed' folder not found; set %s to its path, "
+                         "or use fl_plugin_list for the plugins loaded in the live session." % _ENV}
     eff = sorted(_names(os.path.join(base, "Effects")), key=str.lower)
     gen = sorted(_names(os.path.join(base, "Generators")), key=str.lower)
     return {"found": True, "path": base, "effects": eff, "generators": gen,

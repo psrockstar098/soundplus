@@ -138,6 +138,7 @@ describe("chatComplete tool loop", () => {
     expect(prompt).toContain("cannot load a new plugin");
     expect(prompt).toContain("cannot render or export audio");
     expect(prompt).toContain("not LUFS");
+    expect(prompt).toContain("use fl_plugin_list for the live session's loaded plugins");
   });
 });
 
