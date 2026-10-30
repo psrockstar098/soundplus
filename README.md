@@ -33,6 +33,12 @@ SoundPlus in this one):
 powershell -ExecutionPolicy Bypass -File .\scripts\start-all.ps1
 ```
 
+The launcher fails fast if bun or python is missing, warns if the
+bridge package is not installed, resolves the plugin database
+through the real Documents folder (OneDrive-aware) when you have not
+set `FLSTUDIO_MCP_PLUGIN_DB` yourself, and waits for the daemon's
+port (default 127.0.0.1:9787) before starting the server.
+
 Open http://127.0.0.1:3000/settings, save your provider (base URL,
 key, model) and the FL bridge (command `python`, args
 `-m fl_studio_mcp.server`), then open a project in FL, arm
