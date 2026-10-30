@@ -39,6 +39,12 @@ describe("MCP stdio transport", () => {
     });
   });
 
+  test("wire tools breaking the MCP name pattern are skipped, never registered", async () => {
+    const r = await discoverTools([stdioServer]);
+    expect(r.tools.map((t) => t.namespaced)).not.toContain("flstudio.bad name!");
+    expect(r.skippedTools).toEqual(["flstudio.bad name!"]);
+  });
+
   test("tools/call reaches the stdio server", async () => {
     const result = (await callTool([stdioServer], "flstudio", "list_plugins", {})) as {
       plugins: Array<{ name: string }>;
@@ -59,5 +65,8 @@ describe("MCP stdio transport", () => {
     expect(r.reachable).toBe(true);
     expect(r.pluginCount).toBe(2);
     expect(r.trackCount).toBe(1);
+    expect(r.pluginDbFound).toBe(null);
+    expect(r.notes).toContain("fl_list_installed_plugins not offered; plugin DB status unknown");
+    expect(r.notes).toContain("skipped tools with invalid MCP names: flstudio.bad name!");
   });
 });

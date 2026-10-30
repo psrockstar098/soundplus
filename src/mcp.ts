@@ -15,6 +15,16 @@
  * already-registered server, lands in skippedServers and is NEVER
  * fatal to the rest of the app.
  *
+ * ADDING ANOTHER DAW (Cubase, Ableton, Reaper, ...): register one
+ * server entry — nothing else in the gateway changes. Its tools are
+ * namespaced automatically, it shares the same discovery/call path,
+ * and if it is unreachable it is skipped like any other server.
+ * One rule the gateway enforces: wire tool names must match the MCP
+ * pattern [a-zA-Z0-9_-]+. A tool whose name breaks it is skipped
+ * (listed in skippedTools) instead of being registered under a name
+ * the server would not recognize. The namespaced `<server>.<tool>`
+ * form is SoundPlus-internal only and never goes on the wire.
+ *
  * Phase 1 covers the gateway + registry. Real DAW servers plug in
  * here in Phase 4.
  */
@@ -34,7 +44,12 @@ export type McpTool = {
 export type GatewayResult = {
   tools: McpTool[];
   skippedServers: string[];
+  /** Wire tools skipped because their names break the MCP pattern. */
+  skippedTools: string[];
 };
+
+/** MCP tool names on the wire: [a-zA-Z0-9_-]+, 1-128 chars. */
+const TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
 
 async function rpc(url: string, method: string, params?: unknown): Promise<unknown> {
   const res = await fetch(url, {
@@ -77,6 +92,7 @@ async function rpcFor(server: McpServerEntry, method: string, params?: unknown):
 export async function discoverTools(servers: McpServerEntry[]): Promise<GatewayResult> {
   const tools: McpTool[] = [];
   const skippedServers: string[] = [];
+  const skippedTools: string[] = [];
   const seenNames = new Set<string>();
   for (const server of servers) {
     if (seenNames.has(server.name)) {
@@ -98,6 +114,13 @@ export async function discoverTools(servers: McpServerEntry[]): Promise<GatewayR
         }>;
       };
       for (const tool of listed.tools ?? []) {
+        // A wire name outside the MCP pattern can never be called
+        // back reliably, so skip it with a note instead of
+        // registering a name the server would not recognize.
+        if (typeof tool.name !== "string" || !TOOL_NAME_PATTERN.test(tool.name)) {
+          skippedTools.push(`${server.name}.${String(tool.name)}`);
+          continue;
+        }
         tools.push({
           name: tool.name,
           namespaced: `${server.name}.${tool.name}`,
@@ -110,7 +133,7 @@ export async function discoverTools(servers: McpServerEntry[]): Promise<GatewayR
       skippedServers.push(server.name);
     }
   }
-  return { tools, skippedServers };
+  return { tools, skippedServers, skippedTools };
 }
 
 export async function callTool(

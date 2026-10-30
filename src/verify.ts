@@ -24,6 +24,9 @@ export type BridgeReport = {
   hasGetProject: boolean;
   pluginCount: number | null;
   trackCount: number | null;
+  /** Disk plugin DB (fl_list_installed_plugins, FL bridge only). */
+  pluginDbFound: boolean | null;
+  pluginDbPath: string | null;
   notes: string[];
 };
 
@@ -53,6 +56,8 @@ export async function verifyBridge(server: McpServerEntry): Promise<BridgeReport
     hasGetProject: false,
     pluginCount: null,
     trackCount: null,
+    pluginDbFound: null,
+    pluginDbPath: null,
     notes: [],
   };
   try {
@@ -63,6 +68,9 @@ export async function verifyBridge(server: McpServerEntry): Promise<BridgeReport
   }
   report.reachable = true;
   report.tools = discovered.tools.map((t) => t.name);
+  if (discovered.skippedTools.length > 0) {
+    report.notes.push(`skipped tools with invalid MCP names: ${discovered.skippedTools.join(", ")}`);
+  }
   report.hasListPlugins = report.tools.includes("list_plugins");
   report.hasGetProject = report.tools.includes("get_project");
 
@@ -94,6 +102,30 @@ export async function verifyBridge(server: McpServerEntry): Promise<BridgeReport
     }
   } else {
     report.notes.push("get_project not offered; F2 project intelligence unavailable on this bridge");
+  }
+
+  // Disk plugin DB (FL bridge only): whether the bridge's own path
+  // discovery found FL's 'Installed' folder. Reported, never fatal;
+  // a miss just means the disk library is unavailable (the env
+  // override FLSTUDIO_MCP_PLUGIN_DB covers moved Documents folders).
+  if (report.tools.includes("fl_list_installed_plugins")) {
+    try {
+      const res = (await callTool([server], server.name, "fl_list_installed_plugins", {})) as {
+        found?: unknown;
+        path?: unknown;
+      };
+      report.pluginDbFound = res.found === true;
+      report.pluginDbPath = typeof res.path === "string" ? res.path : null;
+      report.notes.push(
+        report.pluginDbFound
+          ? `plugin DB found at ${report.pluginDbPath}`
+          : "plugin DB not found by the bridge (set FLSTUDIO_MCP_PLUGIN_DB to the 'Installed' folder)",
+      );
+    } catch (e) {
+      report.notes.push(`fl_list_installed_plugins call failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else {
+    report.notes.push("fl_list_installed_plugins not offered; plugin DB status unknown");
   }
   return report;
   } finally {

@@ -31,6 +31,7 @@ for await (const chunk of Bun.stdin.stream()) {
         tools: [
           { name: "list_plugins", description: "list", inputSchema: { type: "object", properties: { q: { type: "string" } } } },
           { name: "get_project", description: "read" },
+          { name: "bad name!", description: "invalid: breaks the MCP tool-name pattern" },
         ],
       });
     } else if (msg.method === "tools/call") {
