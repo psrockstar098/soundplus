@@ -34,6 +34,18 @@ if errorlevel 1 (
   echo FL bridge install failed. See the messages above.
   exit /b 1
 )
+REM The console scripts (fl-studio-mcp) only work if Python's
+REM Scripts folder is on PATH, so verify the package itself is
+REM importable and steer the user at the python -m forms, which
+REM always work.
+python -c "import fl_studio_mcp" >nul 2>nul
+if errorlevel 1 (
+  echo WARNING: the FL bridge package is not importable. Fix with:
+  echo   cd "%ROOT%\bridges\flstudio-mcp"
+  echo   python -m pip install -e .
+  echo   cd "%ROOT%"
+  echo Then re-run this script. Continuing with the Cubase step.
+)
 
 echo.
 echo [2/2] Installing the Cubase bridge requirements...
@@ -50,8 +62,10 @@ echo.
 echo Setup done. Next steps:
 echo   1. Install loopMIDI and create two virtual MIDI ports; wire them
 echo      in FL Studio's MIDI settings (see the FL bridge README).
-echo   2. Start the FL bridge:  fl-studio-mcp-daemon
-echo   3. Verify it:  bun scripts\verify-bridge.ts flstudio stdio fl-studio-mcp-daemon
+echo   2. Start the FL daemon (keep it running):
+echo      python -m fl_studio_mcp.daemon
+echo   3. Verify it (the MCP server needs the daemon already running):
+echo      bun scripts\verify-bridge.ts flstudio stdio python -m fl_studio_mcp.server
 echo   4. Start SoundPlus:  bun src\server.ts
 echo   Full checklist: docs\phase4-verification.md
 endlocal

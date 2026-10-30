@@ -13,8 +13,19 @@ them and talks to them over stdin/stdout. There is no URL to paste.
 In SoundPlus settings a bridge is registered as:
 
 ```json
-{ "name": "flstudio", "transport": "stdio", "command": "fl-studio-mcp-daemon", "args": [] }
+{ "name": "flstudio", "transport": "stdio", "command": "python", "args": ["-m", "fl_studio_mcp.server"] }
 ```
+
+Two programs, not one — this is the part that trips people up.
+The FL bridge has a **daemon** and an **MCP server**. The daemon
+(`python -m fl_studio_mcp.daemon`) runs on its own and talks MIDI
+to FL. The MCP server (`python -m fl_studio_mcp.server`) is the
+stdio program SoundPlus starts; it talks to the daemon over TCP,
+so the daemon must already be running or the server has nothing
+to talk to. The bare `fl-studio-mcp` / `fl-studio-mcp-daemon`
+commands work too, but only if Python's Scripts folder is on PATH;
+the `python -m ...` forms always work, so this checklist uses
+those forms.
 
 The verify command for a stdio bridge is:
 
@@ -55,12 +66,13 @@ the Cubase bridge's requirements — all from the vendored copies.
    `bridges\flstudio-mcp\scripts\install_windows.bat` directly.
 2. Install loopMIDI, create two virtual MIDI ports, and wire them
    in FL Studio's MIDI settings as that repo's guide shows.
-3. Start the bridge: `fl-studio-mcp-daemon` (keep it running).
+3. Start the daemon (keep it running):
+   `python -m fl_studio_mcp.daemon`.
 4. Open FL Studio. In the piano roll, arm `MCP_Apply` once per
    session — FL exposes no API to run a script, so this one manual
    step is required before note writing works.
 5. Verify from the soundplus folder:
-   `bun scripts/verify-bridge.ts flstudio stdio fl-studio-mcp-daemon`
+   `bun scripts/verify-bridge.ts flstudio stdio python -m fl_studio_mcp.server`
    Pass = `reachable: true` and a real tool list (67 tools). With
    a project open in FL, `trackCount` should match the project.
 
