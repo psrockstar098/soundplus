@@ -23,7 +23,14 @@ export async function chatComplete(
     const last = [...messages].reverse().find((m) => m.role === "user");
     return `[stub model ${model}] heard: ${last ? last.content : "(no message)"}`;
   }
-  const url = baseUrl.replace(/\/$/, "") + "/chat/completions";
+  // Providers' docs usually print the full endpoint URL
+  // (.../v1/chat/completions). SoundPlus appends that path itself,
+  // so strip it (and any trailing slash) first — otherwise the
+  // request goes to .../chat/completions/chat/completions and the
+  // provider answers 404.
+  const url =
+    baseUrl.replace(/\/$/, "").replace(/\/chat\/completions$/, "") +
+    "/chat/completions";
   const res = await fetch(url, {
     method: "POST",
     headers: {
