@@ -23,7 +23,9 @@
  * pattern [a-zA-Z0-9_-]+. A tool whose name breaks it is skipped
  * (listed in skippedTools) instead of being registered under a name
  * the server would not recognize. The namespaced `<server>.<tool>`
- * form is SoundPlus-internal only and never goes on the wire.
+ * form never goes on the MCP wire; on the provider wire it goes
+ * sanitized (see sanitizeProviderToolName in ai.ts), with calls
+ * mapped back to the namespaced name before execution.
  *
  * Phase 1 covers the gateway + registry. Real DAW servers plug in
  * here in Phase 4.

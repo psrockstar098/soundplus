@@ -1,5 +1,5 @@
 import { describe, expect, test, afterEach } from "bun:test";
-import { chatComplete } from "../src/ai.ts";
+import { chatComplete, sanitizeProviderToolName } from "../src/ai.ts";
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -38,7 +38,8 @@ describe("chatComplete tool loop", () => {
               message: {
                 content: "",
                 tool_calls: [
-                  { id: "call_1", function: { name: "flstudio.fl_ping", arguments: "{}" } },
+                  // The model only ever sees the sanitized name...
+                  { id: "call_1", function: { name: "flstudio_fl_ping", arguments: "{}" } },
                 ],
               },
             },
@@ -59,11 +60,58 @@ describe("chatComplete tool loop", () => {
       },
     });
     expect(reply).toBe("pong reply");
+    // ...but execution routes on the original namespaced name.
     expect(calls).toEqual([{ name: "flstudio.fl_ping", args: {} }]);
+    const first = seen[0] as { tools: Array<{ function: { name: string } }> };
+    expect(first.tools.map((t) => t.function.name)).toEqual(["flstudio_fl_ping"]);
     const second = seen[1] as { messages: Array<Record<string, unknown>> };
     const toolMsg = second.messages.find((m) => m.role === "tool");
     expect(toolMsg?.tool_call_id).toBe("call_1");
     expect(toolMsg?.content).toBe("pong");
+  });
+
+  test("provider tool names are sanitized and collisions disambiguated", async () => {
+    expect(sanitizeProviderToolName("flstudio.fl_ping")).toBe("flstudio_fl_ping");
+    expect(sanitizeProviderToolName("my server.bad name!")).toBe("my_server_bad_name_");
+    expect(sanitizeProviderToolName("flstudio.fl-ping_x")).toBe("flstudio_fl-ping_x");
+    const seen: unknown[] = [];
+    stubFetchSequence(
+      [
+        {
+          choices: [
+            {
+              message: {
+                content: "",
+                tool_calls: [
+                  { id: "c1", function: { name: "a_b", arguments: "{}" } },
+                  { id: "c2", function: { name: "a_b__2", arguments: "{}" } },
+                ],
+              },
+            },
+          ],
+        },
+        { choices: [{ message: { content: "done" } }] },
+      ],
+      seen,
+    );
+    const calls: string[] = [];
+    await chatComplete("https://example.test/v1", "k", "m", [
+      { role: "user", content: "hi" },
+    ], {
+      // Both sanitize to "a_b" — the second gets a suffix, and each
+      // routes back to its own original tool.
+      tools: [
+        { name: "a.b", description: "first" },
+        { name: "a_b", description: "second" },
+      ],
+      onToolCall: async (name) => {
+        calls.push(name);
+        return "ok";
+      },
+    });
+    const first = seen[0] as { tools: Array<{ function: { name: string } }> };
+    expect(first.tools.map((t) => t.function.name)).toEqual(["a_b", "a_b__2"]);
+    expect(calls).toEqual(["a.b", "a_b"]);
   });
 
   test("tools are sent with tool_choice auto and a system prompt", async () => {
@@ -80,7 +128,7 @@ describe("chatComplete tool loop", () => {
       tool_choice: string;
     };
     expect(first.messages[0]?.role).toBe("system");
-    expect(first.tools.map((t) => t.function.name)).toEqual(["flstudio.fl_ping"]);
+    expect(first.tools.map((t) => t.function.name)).toEqual(["flstudio_fl_ping"]);
     expect(first.tool_choice).toBe("auto");
     // Production-agent rules ride in the system prompt.
     const prompt = first.messages[0]?.content ?? "";

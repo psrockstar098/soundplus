@@ -35,6 +35,13 @@ export type ChatOptions = {
   maxRounds?: number;
 };
 
+/** Provider function names allow only [a-zA-Z0-9_-]. SoundPlus tool
+ * names are namespaced (`server.tool`), so sanitize before sending:
+ * every disallowed char becomes `_`. */
+export function sanitizeProviderToolName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
 const TOOL_SYSTEM_PROMPT = `You are SoundPlus, an AI production assistant connected to FL Studio via Model Context Protocol (MCP).
 You have tools for the DAW session: plugins, tracks, mixer state, piano roll, transport, and more.
 When the user asks about the current DAW session, plugins, tracks, mixer state, or piano roll, call the matching tool and use its result. Do not claim you lack access to the local environment, and never invent DAW state you did not read through a tool.
@@ -61,6 +68,24 @@ export async function chatComplete(
     baseUrl.replace(/\/$/, "").replace(/\/chat\/completions$/, "") +
     "/chat/completions";
   const tools = opts.tools ?? [];
+  // Provider-safe names + the way back: the model only ever sees the
+  // sanitized names (dots are not allowed in provider function names),
+  // so each tool call is mapped back to its original namespaced name
+  // before execution. Collisions get a numeric suffix.
+  const providerNameOf = new Map<string, string>();
+  const originalOf = new Map<string, string>();
+  const usedNames = new Set<string>();
+  for (const t of tools) {
+    let provider = sanitizeProviderToolName(t.name);
+    if (usedNames.has(provider)) {
+      let n = 2;
+      while (usedNames.has(`${provider}__${n}`)) n++;
+      provider = `${provider}__${n}`;
+    }
+    usedNames.add(provider);
+    providerNameOf.set(t.name, provider);
+    originalOf.set(provider, t.name);
+  }
   const working: ChatMessage[] = [...messages];
   if (tools.length > 0 && working[0]?.role !== "system") {
     working.unshift({ role: "system", content: TOOL_SYSTEM_PROMPT });
@@ -82,7 +107,7 @@ export async function chatComplete(
       payload.tools = tools.map((t) => ({
         type: "function",
         function: {
-          name: t.name,
+          name: providerNameOf.get(t.name) ?? t.name,
           description: t.description,
           parameters: t.parameters ?? { type: "object", properties: {} },
         },
@@ -138,7 +163,11 @@ export async function chatComplete(
       }
       let result: string;
       try {
-        result = await opts.onToolCall(call.function.name, args);
+        // Map the provider-safe name back to the namespaced tool the
+        // gateway routes on; an unknown name passes through and fails
+        // safely in the gateway instead of crashing the loop.
+        const original = originalOf.get(call.function.name) ?? call.function.name;
+        result = await opts.onToolCall(original, args);
       } catch (e) {
         result = `Error: ${e instanceof Error ? e.message : String(e)}`;
       }
